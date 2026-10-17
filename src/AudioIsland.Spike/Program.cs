@@ -1,28 +1,29 @@
 ﻿using AudioIsland.Audio.Devices;
 using AudioIsland.Core.Devices;
 
-// Session 1 spike: device enumeration + change notifications.
-// Prints real endpoints from this machine and listens for changes.
+// Session 1 spike: master volume two-way sync.
+// 1. Reads current system volume.
+// 2. Sets it to 40% (watch taskbar slider move).
+// 3. Waits 10s — change volume externally (taskbar/keyboard) and it will echo.
+// 4. Restores original level + mute.
 
-using var service = new AudioDeviceService();
+using var devices = new AudioDeviceService();
+using var master = new MasterVolumeService(devices);
 
-Console.WriteLine("=== Playback (render) devices ===");
-foreach (var d in service.GetDevices(AudioDataFlow.Render))
-    Console.WriteLine($"  {(d.IsDefaultForRender ? "[default] " : "          ")}{d.Name}  ({d.State})");
+var original = master.GetState();
+Console.WriteLine($"Current: {original.Level:P0} muted={original.IsMuted}");
 
-Console.WriteLine();
-Console.WriteLine("=== Recording (capture) devices ===");
-foreach (var d in service.GetDevices(AudioDataFlow.Capture))
-    Console.WriteLine($"  {(d.IsDefaultForRender ? "[default] " : "          ")}{d.Name}  ({d.State})");
+master.VolumeChanged += (_, s) => Console.WriteLine($"  [event] {s.Level:P0} muted={s.IsMuted}");
+master.DefaultDeviceChanged += (_, id) => Console.WriteLine($"  [event] default device -> {id ?? "(none)"}");
 
-Console.WriteLine();
-Console.WriteLine("Device-change notifications: plug/unplug a device or change default (15s listen)...");
-var sw = 0;
-service.DevicesChanged += (_, e) =>
-{
-    Interlocked.Increment(ref sw);
-    Console.WriteLine($"  [{DateTimeOffset.Now:HH:mm:ss}] change for {e.Flow} flow");
-};
+Console.WriteLine("Setting volume to 40%...");
+master.SetLevel(0.40f);
+Console.WriteLine($"Verify taskbar shows 40%: {master.GetState().Level:P0}");
 
-Thread.Sleep(15_000);
-Console.WriteLine($"Done. {sw} event(s) received.");
+Console.WriteLine("10s window: change volume externally now...");
+Thread.Sleep(10_000);
+
+Console.WriteLine($"Restoring to {original.Level:P0} muted={original.IsMuted}");
+master.SetLevel(original.Level);
+master.SetMuted(original.IsMuted);
+Console.WriteLine("Done.");

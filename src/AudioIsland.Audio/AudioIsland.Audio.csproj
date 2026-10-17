@@ -5,4 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AudioIsland.Core\AudioIsland.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
 </Project>

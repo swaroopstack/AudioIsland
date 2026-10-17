@@ -1,29 +1,45 @@
-﻿using AudioIsland.Audio.Devices;
-using AudioIsland.Core.Devices;
+﻿using AudioIsland.Audio.Sessions;
 
-// Session 1 spike: master volume two-way sync.
-// 1. Reads current system volume.
-// 2. Sets it to 40% (watch taskbar slider move).
-// 3. Waits 10s — change volume externally (taskbar/keyboard) and it will echo.
-// 4. Restores original level + mute.
+// Session 1 spike: per-app session enumeration + volume/mute.
+// Play any audio (YouTube/music app) while this runs.
 
-using var devices = new AudioDeviceService();
-using var master = new MasterVolumeService(devices);
+using var sessions = new AudioSessionService();
 
-var original = master.GetState();
-Console.WriteLine($"Current: {original.Level:P0} muted={original.IsMuted}");
+Console.WriteLine("=== Audio sessions (play some audio while this runs) ===");
+var list = sessions.GetSessions();
+if (list.Count == 0)
+{
+    Console.WriteLine("  No sessions. Start audio playback and re-run.");
+    return;
+}
 
-master.VolumeChanged += (_, s) => Console.WriteLine($"  [event] {s.Level:P0} muted={s.IsMuted}");
-master.DefaultDeviceChanged += (_, id) => Console.WriteLine($"  [event] default device -> {id ?? "(none)"}");
+foreach (var s in list)
+{
+    Console.WriteLine($"  {s.DisplayNameOrFallback,-40} pid={s.ProcessId,-6} vol={s.Volume,6:P0} muted={s.IsMuted,-5} active={s.IsActive}");
+}
 
-Console.WriteLine("Setting volume to 40%...");
-master.SetLevel(0.40f);
-Console.WriteLine($"Verify taskbar shows 40%: {master.GetState().Level:P0}");
+// Pick first non-system, non-muted session and demonstrate volume control.
+var target = list.FirstOrDefault(s => s.ProcessId > 0 && s.ProcessName is not ("AudioIsland.Spike" or "AudioIsland.App"));
+if (target is null)
+{
+    Console.WriteLine("No controllable session found.");
+    return;
+}
 
-Console.WriteLine("10s window: change volume externally now...");
-Thread.Sleep(10_000);
+Console.WriteLine();
+Console.WriteLine($"Demo: muting '{target.DisplayNameOrFallback}'...");
+sessions.SetSessionMuted(target.SessionId, true);
+var after = sessions.GetSessions().First(x => x.SessionId == target.SessionId);
+Console.WriteLine($"  -> muted={after.IsMuted}  (sound from that app should stop)");
+Thread.Sleep(2000);
+Console.WriteLine($"Demo: unmuting...");
+sessions.SetSessionMuted(target.SessionId, false);
+after = sessions.GetSessions().First(x => x.SessionId == target.SessionId);
+Console.WriteLine($"  -> muted={after.IsMuted}  (sound should resume)");
 
-Console.WriteLine($"Restoring to {original.Level:P0} muted={original.IsMuted}");
-master.SetLevel(original.Level);
-master.SetMuted(original.IsMuted);
+Console.WriteLine();
+Console.WriteLine("Demo: setting volume to 25% then back...");
+sessions.SetSessionVolume(target.SessionId, 0.25f);
+Thread.Sleep(1500);
+sessions.SetSessionVolume(target.SessionId, target.Volume);
 Console.WriteLine("Done.");

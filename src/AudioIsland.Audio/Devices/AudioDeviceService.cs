@@ -22,6 +22,7 @@ public sealed class AudioDeviceService : IAudioDeviceService
     public AudioDeviceService()
     {
         _notification = new NotificationClient(this);
+        _debounceTimer = new Timer(OnDebounceElapsed, null, Timeout.Infinite, Timeout.Infinite);
         _enumerator.RegisterEndpointNotificationCallback(_notification);
     }
 
@@ -63,12 +64,37 @@ public sealed class AudioDeviceService : IAudioDeviceService
     }
 
     /// <summary>
-    /// COM callbacks arrive on an MTA thread; re-entrancy into the enumerator
-    /// from inside the callback deadlocks on some builds, so raise the event
-    /// outside any enumerator call. Consumers must marshal to the UI thread.
+    /// COM callbacks arrive on an MTA thread; a single physical change (plug in
+    /// a headset, switch default) fires several callbacks in a burst. Coalesce
+    /// bursts into one event per <see cref="DebounceMs"/> so consumers
+    /// re-enumerate once, not ten times. Never raise from inside COM callback
+    /// context — some builds deadlock if the enumerator is re-entered there.
     /// </summary>
-    private void RaiseDevicesChanged(AudioDataFlow flow) =>
-        DevicesChanged?.Invoke(this, new AudioDevicesChangedEventArgs(flow));
+    private void RaiseDevicesChanged(AudioDataFlow flow)
+    {
+        lock (_gate)
+        {
+            var f = flow == AudioDataFlow.Capture ? AudioDataFlow.Capture : AudioDataFlow.Render;
+            _pendingFlow = _pendingFlow is { } existing ? existing | f : f;
+            _debounceTimer?.Change(DebounceMs, Timeout.Infinite);
+        }
+    }
+
+    private const int DebounceMs = 200;
+    private AudioDataFlow? _pendingFlow;
+    private Timer? _debounceTimer;
+
+    private void OnDebounceElapsed(object? _)
+    {
+        AudioDataFlow? flow;
+        lock (_gate)
+        {
+            flow = _pendingFlow;
+            _pendingFlow = null;
+        }
+        if (flow is { } f)
+            DevicesChanged?.Invoke(this, new AudioDevicesChangedEventArgs(f));
+    }
 
     public event EventHandler<AudioDevicesChangedEventArgs>? DevicesChanged;
 
@@ -90,6 +116,7 @@ public sealed class AudioDeviceService : IAudioDeviceService
     {
         try { _enumerator.UnregisterEndpointNotificationCallback(_notification); }
         catch (COMException) { /* COM already torn down — nothing to do */ }
+        _debounceTimer?.Dispose();
         _enumerator.Dispose();
         GC.SuppressFinalize(this);
     }

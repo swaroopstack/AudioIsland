@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AudioIsland.Sys</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AudioIsland.Core\AudioIsland.Core.csproj" />
+  </ItemGroup>
+</Project>

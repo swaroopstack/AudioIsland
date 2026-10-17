@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AudioIsland.Spike</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AudioIsland.Audio\AudioIsland.Audio.csproj" />
+    <ProjectReference Include="..\AudioIsland.Core\AudioIsland.Core.csproj" />
+  </ItemGroup>
+</Project>

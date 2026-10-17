@@ -21,7 +21,8 @@ internal sealed class SigProvider : ISignatureTypeProvider<string, object?>
     public string GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte rawTypeKind)
     {
         var tr = reader.GetTypeReference(handle);
-        return reader.GetString(tr.Name);
+        var ns = reader.GetString(tr.Namespace);
+        return string.IsNullOrEmpty(ns) ? reader.GetString(tr.Name) : $"{ns}.{reader.GetString(tr.Name)}";
     }
     public string GetTypeFromSpecification(MetadataReader reader, object? genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
     {

@@ -121,13 +121,20 @@ came from. Never trust memory or an alphabetical/natural grouping.
 
 ## Implications for AudioIsland V1
 
-- **Split mode is feasible.** Capture app A via `INCLUDE` on its PID, render
-  the captured stream to device X; capture app B → device Y.
+- **Capture is proven**, but see `tap-vs-session-volume.md`: the tap reads
+  **after** the source session's volume node, so the obvious way to *move* an
+  app (capture it, then mute its original session) produces silence. Split mode
+  must not be designed that way.
 - **Same-browser-tab splitting is not possible** (accepted V1 limit): the
   browser renders all tabs through one audio session owned by one PID, so
   process loopback cannot separate them.
 - **Mirroring** (one app → many devices) is a render-side concern: NAudio can
-  open multiple `WasapiOut` instances on the same captured stream.
+  open multiple `WasapiOut` instances on the same captured stream. A
+  post-volume tap is exactly right for mirroring, because a mirror deliberately
+  leaves the app playing on its own device.
+- **Split mode** is under redesign, most likely onto Windows' own per-app
+  endpoint override (`IAudioPolicyConfigFactory`). Nothing is verified there
+  yet — see `tap-vs-session-volume.md` before building routing.
 - Bluetooth and wired/USB outputs are all ordinary WASAPI endpoints and are
   addressed by device ID, already covered by the device enumeration work.
 
